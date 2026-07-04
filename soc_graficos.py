@@ -104,6 +104,41 @@ def grafico_por_severidad(eventos, salida="eventos_por_severidad.png"):
     print(f"[OK] Guardado: {salida}")
 
 
+def grafico_timeline(eventos, salida="actividad_por_hora.png"):
+    """Barras: numero de eventos por hora del dia (0-23)."""
+    def hora_de(ts):
+        # ts ejemplo: "Jul 4, 2026 @ 09:59:37.385"
+        # Tomamos lo que esta despues de "@" y nos quedamos con la hora.
+        # Extraer solo la hora evita depender del idioma del mes (Jul/jul).
+        parte = ts.split("@")[1].strip()      # "09:59:37.385"
+        return int(parte.split(":")[0])       # 9
+
+    # Contamos eventos por hora y mostramos las 24 horas (0 si no hay actividad).
+    conteo = Counter(hora_de(e["timestamp"]) for e in eventos)
+    horas = list(range(24))
+    valores = [conteo.get(h, 0) for h in horas]
+
+    fig, ax = plt.subplots(figsize=(11, 4.5))
+    ax.bar(horas, valores, color="#264653", width=0.8)
+
+    ax.set_xticks(horas)
+    ax.set_xticklabels([f"{h:02d}" for h in horas])
+    ax.set_xlabel("Hora del dia")
+    ax.set_ylabel("Numero de eventos")
+
+    agentes = sorted(set(e["agent.name"] for e in eventos))
+    nombre = agentes[0] if len(agentes) == 1 else "todos los agentes"
+    ax.set_title(f"Actividad por hora - {nombre}  (total: {len(eventos)})",
+                 fontsize=13, fontweight="bold")
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    fig.tight_layout()
+    fig.savefig(salida, dpi=150)
+    print(f"[OK] Guardado: {salida}")
+
+
 def main():
     if len(sys.argv) < 2:
         print("Uso: python soc_graficos.py <ruta_al_csv>")
@@ -115,6 +150,7 @@ def main():
 
     grafico_por_regla(eventos)
     grafico_por_severidad(eventos)
+    grafico_timeline(eventos)
 
 
 if __name__ == "__main__":
