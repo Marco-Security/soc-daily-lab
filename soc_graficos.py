@@ -55,6 +55,55 @@ def grafico_por_regla(eventos, salida="eventos_por_regla.png"):
     print(f"[OK] Guardado: {salida}")
 
 
+def grafico_por_severidad(eventos, salida="eventos_por_severidad.png"):
+    """Barras por categoria de severidad (mapea rule.level -> Low/Medium/High/Critical)."""
+    # Orden fijo de categorias y su color semantico (verde -> rojo).
+    categorias = ["Low (0-6)", "Medium (7-11)", "High (12-14)", "Critical (15)"]
+    colores = {
+        "Low (0-6)": "#2a9d8f",       # verde: informativo / bajo riesgo
+        "Medium (7-11)": "#e9c46a",   # ambar: merece atencion
+        "High (12-14)": "#f4a261",    # naranja: prioritario
+        "Critical (15)": "#e76f51",   # rojo: maxima severidad
+    }
+
+    def categoria(nivel):
+        """Traduce un rule.level (numero) a su categoria de severidad."""
+        n = int(nivel)
+        if n <= 6:
+            return "Low (0-6)"
+        if n <= 11:
+            return "Medium (7-11)"
+        if n <= 14:
+            return "High (12-14)"
+        return "Critical (15)"
+
+    # Contamos eventos por categoria. Mostramos las 4 siempre (0 si no aparece),
+    # para que se vea explicitamente que High/Critical estan en cero.
+    conteo = Counter(categoria(e["rule.level"]) for e in eventos)
+    valores = [conteo.get(c, 0) for c in categorias]
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    barras = ax.bar(categorias, valores, color=[colores[c] for c in categorias])
+
+    # Numero encima de cada barra.
+    for barra, valor in zip(barras, valores):
+        ax.text(barra.get_x() + barra.get_width() / 2, valor + 0.2,
+                str(valor), ha="center", fontsize=11, fontweight="bold")
+
+    agentes = sorted(set(e["agent.name"] for e in eventos))
+    nombre = agentes[0] if len(agentes) == 1 else "todos los agentes"
+    ax.set_title(f"Eventos por severidad - {nombre}  (total: {len(eventos)})",
+                 fontsize=13, fontweight="bold")
+    ax.set_ylabel("Numero de eventos")
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    fig.tight_layout()
+    fig.savefig(salida, dpi=150)
+    print(f"[OK] Guardado: {salida}")
+
+
 def main():
     if len(sys.argv) < 2:
         print("Uso: python soc_graficos.py <ruta_al_csv>")
@@ -65,6 +114,7 @@ def main():
     print(f"Cargados {len(eventos)} eventos desde {ruta}")
 
     grafico_por_regla(eventos)
+    grafico_por_severidad(eventos)
 
 
 if __name__ == "__main__":
