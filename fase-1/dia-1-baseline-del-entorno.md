@@ -48,9 +48,9 @@ Eventos por severidad (Low/Medium/High/Critical):
 
 ![Eventos por severidad — Ubuntu-Victim, Día 1](../imagenes/dia-1/dia1_eventos_por_severidad.png)
 
-Actividad por hora:
+Serie de tiempo (eventos por hora cronológica):
 
-![Actividad por hora — Ubuntu-Victim, Día 1](../imagenes/dia-1/dia1_actividad_por_hora.png)
+![Serie de tiempo de eventos — Ubuntu-Victim, Día 1](../imagenes/dia-1/dia1_serie_tiempo.png)
 
 ## Triage
 
