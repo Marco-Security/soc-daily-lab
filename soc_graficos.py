@@ -12,10 +12,12 @@ El CSV debe tener al menos estas columnas (como las exporta Wazuh):
 import sys
 import csv
 from collections import Counter
+from datetime import datetime, timedelta
 
 import matplotlib
 matplotlib.use("Agg")          # backend "sin ventana": dibuja directo a archivo PNG
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 
 def cargar_eventos(ruta_csv):
@@ -104,32 +106,58 @@ def grafico_por_severidad(eventos, salida="eventos_por_severidad.png"):
     print(f"[OK] Guardado: {salida}")
 
 
-def grafico_timeline(eventos, salida="actividad_por_hora.png"):
-    """Barras: numero de eventos por hora del dia (0-23)."""
-    def hora_de(ts):
-        # ts ejemplo: "Jul 4, 2026 @ 09:59:37.385"
-        # Tomamos lo que esta despues de "@" y nos quedamos con la hora.
-        # Extraer solo la hora evita depender del idioma del mes (Jul/jul).
-        parte = ts.split("@")[1].strip()      # "09:59:37.385"
-        return int(parte.split(":")[0])       # 9
+MESES = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+         "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
 
-    # Contamos eventos por hora y mostramos las 24 horas (0 si no hay actividad).
-    conteo = Counter(hora_de(e["timestamp"]) for e in eventos)
-    horas = list(range(24))
+
+def parse_timestamp(ts):
+    """Convierte el timestamp de Wazuh a un objeto datetime.
+
+    Formato de entrada: 'Jul 4, 2026 @ 09:59:37.385'.
+    Mapeamos el mes a mano (MESES) para no depender del idioma del sistema.
+    """
+    fecha, hora = ts.split("@")
+    partes = fecha.replace(",", "").split()      # ["Jul", "4", "2026"]
+    mes, dia, anio = MESES[partes[0]], int(partes[1]), int(partes[2])
+    hms = hora.strip().split(":")                # ["09", "59", "37.385"]
+    return datetime(anio, mes, dia, int(hms[0]), int(hms[1]), int(float(hms[2])))
+
+
+def grafico_serie_tiempo(eventos, salida="serie_tiempo.png"):
+    """Serie de tiempo: numero de eventos por hora cronologica (fecha + hora real)."""
+    # Cada evento cae en el 'balde' de su hora (minutos/segundos a cero).
+    baldes = [parse_timestamp(e["timestamp"]).replace(minute=0, second=0, microsecond=0)
+              for e in eventos]
+    conteo = Counter(baldes)
+
+    # Rellenamos TODAS las horas entre la primera y la ultima, incluso las de 0
+    # eventos, para que la linea sea continua y se vean los huecos de inactividad.
+    inicio, fin = min(baldes), max(baldes)
+    horas, t = [], inicio
+    while t <= fin:
+        horas.append(t)
+        t += timedelta(hours=1)
     valores = [conteo.get(h, 0) for h in horas]
 
     fig, ax = plt.subplots(figsize=(11, 4.5))
-    ax.bar(horas, valores, color="#264653", width=0.8)
+    ax.plot(horas, valores, color="#264653", marker="o", linewidth=2)
+    ax.fill_between(horas, valores, color="#264653", alpha=0.15)
 
-    ax.set_xticks(horas)
-    ax.set_xticklabels([f"{h:02d}" for h in horas])
-    ax.set_xlabel("Hora del dia")
-    ax.set_ylabel("Numero de eventos")
+    # Etiquetamos solo los puntos con actividad (evita saturar de ceros).
+    for h, v in zip(horas, valores):
+        if v > 0:
+            ax.text(h, v + 0.4, str(v), ha="center", fontsize=9, fontweight="bold")
+
+    # Eje X con formato de fecha/hora legible.
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b %H:%M"))
+    fig.autofmt_xdate(rotation=45)
 
     agentes = sorted(set(e["agent.name"] for e in eventos))
     nombre = agentes[0] if len(agentes) == 1 else "todos los agentes"
-    ax.set_title(f"Actividad por hora - {nombre}  (total: {len(eventos)})",
+    ax.set_title(f"Serie de tiempo de eventos - {nombre}  (total: {len(eventos)})",
                  fontsize=13, fontweight="bold")
+    ax.set_ylabel("Numero de eventos")
+    ax.set_ylim(bottom=0)
 
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
@@ -150,7 +178,7 @@ def main():
 
     grafico_por_regla(eventos)
     grafico_por_severidad(eventos)
-    grafico_timeline(eventos)
+    grafico_serie_tiempo(eventos)
 
 
 if __name__ == "__main__":
